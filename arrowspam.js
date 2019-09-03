@@ -1,7 +1,7 @@
 var config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    width: window.innerWidth,
+    height: window.innerHeight,
     physics: {
         default: 'arcade',
         arcade: {
@@ -25,6 +25,30 @@ var aKey
 var bKey
 let platforms 
 let light
+
+// Määritellään ruudun leveys, keskipiste, maan korkeus ja pelaajien aloituspaikat.
+const width = this.game.config.width
+const height = this.game.config.height
+const centerX = Math.round(width / 2)
+const centerY = Math.round(height / 2)
+const groundLevel = height - 50
+const wizardX = 200 + Math.round(Math.random() * 80 - 40)
+const monkX = width - 200 + Math.round(Math.random() * 80 - 40)
+
+const CHARACTER_SCALE = width > 1000 ? 2 : 1.5
+const CROSSHAIR_SCALE = CHARACTER_SCALE === 2 ? 2 : 1
+
+const POWER_MAX = Math.round((width - 100) / 200 * 100)
+const POWER_MIN = POWER_MAX - 300
+const CROSSHAIR_DISTANCE = 20
+
+let wizardPower = POWER_MIN
+let wizardAngle = 190 // Asteita, 0 on oikealla.
+let wizardAngleDelta = 1
+
+let monkPower = POWER_MIN
+let monkAngle = 350
+let monkAngleDelta = 1
 
 // Resurssien lataaminen pelin käynnistyessä.
 function preload () {
@@ -58,31 +82,31 @@ function preload () {
 function create () {
     // Taustakuvan kerrokset. Otetaan valokerrokset muistiin, jotta niitä voi
     // säätää.
-    this.add.image(400, 200, 'layer10')
-    this.add.image(400, 200, 'layer9')
-    this.add.image(400, 200, 'layer8')
-    light1 = this.add.image(400, 200, 'layer7')
-    this.add.image(400, 200, 'layer6')
-    this.add.image(400, 200, 'layer5')
-    light2 = this.add.image(400, 200, 'layer4')
-    this.add.image(400, 200, 'layer3')
-    this.add.image(400, 200, 'layer2')
-    this.add.image(400, 200, 'layer1')
-    this.add.image(400, 200, 'layer0')
+    this.add.image(centerX, centerY, 'layer10').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer9').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer8').setDisplaySize(width, height)
+    light1 = this.add.image(centerX, centerY, 'layer7').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer6').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer5').setDisplaySize(width, height)
+    light2 = this.add.image(centerX, centerY, 'layer4').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer3').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer2').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer1').setDisplaySize(width, height)
+    this.add.image(centerX, centerY, 'layer0').setDisplaySize(width, height)
 
     // Luodaan velho ja velhon tähtäin.
-    sprites.wizard = this.physics.add.sprite(200, 550, 'wizard').setScale(1.5, 1.5)
+    sprites.wizard = this.physics.add.sprite(wizardX, groundLevel, 'wizard').setScale(CHARACTER_SCALE)
     sprites.wizard.body.allowGravity = false
-    sprites.wizardCrosshair = this.add.sprite(200, 550, 'crosshair')
+    sprites.wizardCrosshair = this.add.sprite(wizardX, groundLevel, 'crosshair').setScale(CROSSHAIR_SCALE)
 
     // Luodaan munkki ja munkin tähtäin.
-    sprites.monk = this.physics.add.sprite(600, 560, 'monk').setScale(1.5, 1.5)
+    sprites.monk = this.physics.add.sprite(monkX, groundLevel, 'monk').setScale(CHARACTER_SCALE)
     sprites.monk.body.allowGravity = false
-    sprites.monkCrosshair = this.add.sprite(600, 550, 'crosshair')
+    sprites.monkCrosshair = this.add.sprite(monkX, groundLevel, 'crosshair').setScale(CROSSHAIR_SCALE)
 
     // Luodaan pohjakerros estämään asioiden putoamista.
     platforms = this.physics.add.staticGroup()
-    platforms.create(400, 585, 'bottom')
+    platforms.create(centerX, groundLevel + 35, 'bottom').setDisplaySize(width, 25)
     platforms.toggleVisible()
 
     // Luodaan ammuksille ryhmät ja törmäykset.
@@ -93,19 +117,20 @@ function create () {
         collideWorldBounds: false
     })
     // Laitetaan spritelle asianmukaiset törmäyssäännöt.
-    this.physics.add.collider(sprites.wizardShots, sprites.monk)
     this.physics.add.collider(sprites.wizardShots, platforms)
-    this.physics.add.overlap(sprites.wizardShots, platforms, fizzle, null, this)
-    this.physics.add.overlap(sprites.wizardShots, sprites.monk, scoreHit, null, this)
-    this.physics.add.collider(sprites.monkShots, sprites.wizard)
     this.physics.add.collider(sprites.monkShots, platforms)
-    this.physics.add.overlap(sprites.monkShots, platforms, fizzle, null, this)
-    this.physics.add.overlap(sprites.monkShots, sprites.wizard, scoreHit, null, this)
+    this.physics.add.collider(sprites.wizardShots, sprites.monk)
+    this.physics.add.collider(sprites.monkShots, sprites.wizard)
     this.physics.add.collider(sprites.monkShots, sprites.wizardShots)
 
+    this.physics.add.overlap(sprites.wizardShots, platforms, fizzle, null, this)
+    this.physics.add.overlap(sprites.wizardShots, sprites.monk, scoreHit, null, this)
+    this.physics.add.overlap(sprites.monkShots, platforms, fizzle, null, this)
+    this.physics.add.overlap(sprites.monkShots, sprites.wizard, scoreHit, null, this)
+
     // Luodaan voimapalkit.
-    power.wizard = this.add.rectangle(150, 575, 1, 10, 0xff0000)
-    power.monk = this.add.rectangle(550, 575, 1, 10, 0xff0000)
+    power.wizard = this.add.rectangle(wizardX - 50, groundLevel + 25, 1, 10, 0xff0000)
+    power.monk = this.add.rectangle(monkX - 50, groundLevel + 25, 1, 10, 0xff0000)
 
     // Munkki ja velho törmäävät pohjakerrokseen.
     this.physics.add.collider(sprites.monk, platforms)
@@ -114,19 +139,10 @@ function create () {
     // Rekisteröidään näppäimet.
     aKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A)
     bKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L)
+
+    this.add.text(centerX, 50, "Wizard vs Monk", { fontFamily: 'Verdana', fontSize: 48, align: 'center' }).setOrigin(0.5)
+    this.add.text(centerX, 100, "Wizard: press A | Monk: press L", { fontFamily: 'Verdana', fontSize: 12, align: 'center' }).setOrigin(0.5)
 }
-
-const POWER_MIN = 100
-const POWER_MAX = 400
-const CROSSHAIR_DISTANCE = 20
-
-let wizardPower = POWER_MIN
-let wizardAngle = 190 // Asteita, 0 on oikealla.
-let wizardAngleDelta = 1
-
-let monkPower = POWER_MIN
-let monkAngle = 350
-let monkAngleDelta = 1
 
 function update() {
     // Valokerrosten vilkuttelua, säädetään alphaa (läpinäkyvyyttä)
@@ -151,8 +167,8 @@ function update() {
     if (monkAngle > 350 || monkAngle < 190) monkAngleDelta *= -1
 
     // Voimapalkin leveys hahmon voiman verran, muunnettuna välille 0-100.
-    power.wizard.width = Math.round(wizardPower / 2) - (POWER_MIN / 2)
-    power.monk.width = Math.round(monkPower / 2) - (POWER_MIN / 2)
+    power.wizard.width = Math.round(wizardPower / 2 - (POWER_MIN / 2))
+    power.monk.width = Math.round(monkPower / 2 - (POWER_MIN / 2))
 
     // Piirretään tähtäimet oikeaan kohtaan.
     sprites.wizardCrosshair.x = sprites.wizard.x + 10 + CROSSHAIR_DISTANCE * Math.cos(wizardAngle * (Math.PI/180))
@@ -197,8 +213,15 @@ function fizzle(shot, platforms) {
 }
 
 // Ammus osuu kohteeseen.
-function scoreHit(shot, target) {
+function scoreHit(target, shot) {
     shot.disableBody(true, true)
     target.disableBody(true, true)
-    this.add.image(400, 200, 'youwin')
+    if (target.texture.key === 'monk') {
+        this.add.text(centerX, centerY, "Wizard wins!", { fontFamily: 'Verdana', fontSize: 48, align: 'center' }).setOrigin(0.5)
+        sprites.monkCrosshair.destroy()
+    } 
+    if (target.texture.key === 'wizard') {
+        this.add.text(centerX, centerY, "Monk wins!", { fontFamily: 'Verdana', fontSize: 48, align: 'center' }).setOrigin(0.5)
+        sprites.wizardCrosshair.destroy()
+    }   
 }
